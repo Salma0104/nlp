@@ -1,116 +1,185 @@
 from datasets import load_dataset
-from transformers import AutoTokenizer,Seq2SeqTrainer, Seq2SeqTrainingArguments,AutoModelForSeq2SeqLM,DataCollatorForSeq2Seq
+from transformers import (
+  AutoTokenizer,
+  Seq2SeqTrainer,
+  Seq2SeqTrainingArguments,
+  AutoModelForSeq2SeqLM,
+  DataCollatorForSeq2Seq,
+  AutoModelForCausalLM,
+  get_scheduler,
+  pipeline,
+
+)
+from torch.utils.data import DataLoader
+from torch.optim import AdamW
 import torch
 import transformers
 import pandas as pd
 import evaluate
 import numpy as np
 import warnings
+import matplotlib.pyplot as plt
+from pathlib import Path
+import os
+
 warnings.filterwarnings('ignore')
 transformers.set_seed(2002)
 
-def generate(text,model,tokenizer):
-  model.eval()
-  input_ids = tokenizer(text,return_tensors="pt",padding=True,truncation=True)["input_ids"]
-  input_ids = input_ids.to(model.device)
-  outputs = model.generate(
-    input_ids,
-    max_length=512,
-    early_stopping=True,
-    use_cache=True,
-    num_beams=5,
+class CustomSciGenTrainer:
+
+  def __init__(self,mode,checkpoint,access_token,dataset_path,dataset_type,max_input_length,max_target_length,batch_size):
+    self.mode = mode
+    self.access_token = access_token
+    self.dataset_path = dataset_path
+    self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    self.checkpoint = checkpoint 
+    self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint,token=self.access_token)
+    self.max_input_length = max_input_length
+    self.max_target_length = max_target_length
+    self.batch_size = batch_size
+    self.dataset_type = dataset_type
+    self.model_name = self.checkpoint.split('/')[-1]
+
+    # Make required directories
+    directories = ['./plots','./models',f'./models/{self.model_name}-{self.dataset_type}']
+    for d in directories:
+      if not Path(d).is_dir():
+        os.makedirs(d)
+
+  def load_dataset(self):
+    data_files = {"train":"train.csv","val":"dev.csv"}
+    datasets = load_dataset(path=self.dataset_path, data_files=data_files)
+    return datasets
+  
+  def load_model(self):
+    if self.mode == "seq2seq":
+      model = AutoModelForSeq2SeqLM.from_pretrained(self.checkpoint,token = self.access_token)
+    elif self.mode == "causal":
+      model = AutoModelForCausalLM.from_pretrained(self.checkpoint,token = self.access_token)
+    return model
+  
+  def preprocess_function(self,example):
+    model_inputs = self.tokenizer(example["source"], max_length=self.max_input_length,padding=True,truncation=True)
+
+    labels = self.tokenizer(example["target"], max_length=self.max_target_length,padding=True,truncation=True)
+    model_inputs["labels"] = labels["input_ids"]
+
+    return model_inputs
+  
+  def tokenize_dataset(self,datasets):
+    tokenized_datasets = datasets.map(self.preprocess_function, batched=True)
+    tokenized_datasets = tokenized_datasets.remove_columns("source")
+    tokenized_datasets = tokenized_datasets.remove_columns("target")
+    tokenized_datasets.set_format("torch")
+    return tokenized_datasets
+  
+  def create_dataloaders(self,tokenized_datasets, data_collator):
+    train_dl = DataLoader(
+      tokenized_datasets["train"],
+      shuffle = True,
+      collate_fn = data_collator,
+      batch_size = self.batch_size
     )
-  return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    val_dl = DataLoader(tokenized_datasets["val"], batch_size = self.batch_size//2)
+    return train_dl,val_dl
+  
+  def plot(self,losses,scores,model_name):
+    plt.figure("Training results", (12, 6))
+    plt.subplot(1, 2, 1)
+    plt.title("Epoch Average Loss")
+    x = [i + 1 for i in range(len(losses))]
+    y = losses
+    plt.xlabel("epoch")
+    plt.plot(x, y)
+    plt.subplot(1, 2, 2)
+    plt.title("Bleu Scores")
+    x = [len(losses)//len(scores) * (i + 1) for i in range(len(scores))]
+    y = scores 
+    plt.xlabel("epoch")
+    plt.plot(x, y)
+    plt.savefig(f'plots/{model_name}-{self.dataset_type}.png', bbox_inches='tight', pad_inches=0)
+
+  def train(self,learning_rate,epochs):
+    model = self.load_model()
+    model.to(self.device)
+    data_collator = DataCollatorForSeq2Seq(self.tokenizer,model=model)# CHANGE IF CAUSAL!!
+    datasets = self.load_dataset()
+    tokenized_datasets = self.tokenize_dataset(datasets)
+    train_dl,val_dl = self.create_dataloaders(tokenized_datasets,data_collator)
+    optimizer = AdamW(model.parameters(), lr=learning_rate, eps =1e-4)
+    metric = evaluate.load("sacrebleu")
+    scaler = torch.cuda.amp.GradScaler()
+
+    
+    lr_scheduler = get_scheduler(
+      "linear",
+      optimizer = optimizer,
+      num_warmup_steps = 0,
+      num_training_steps = epochs*len(train_dl),
+    )
+    # Actual train loop
+    losses = []
+    metric_scores = []
+    best_result = -1
+    for epoch in range(epochs):
+      model.train()
+      epoch_loss = []
+      for step, batch in enumerate(train_dl):
+        batch = {k: v.to(self.device) for k, v in batch.items()}
+
+        outputs = model(**batch)
+        loss = outputs.loss
+        loss.backward()
+        optimizer.step()
+        lr_scheduler.step()
+        optimizer.zero_grad()
+
+        epoch_loss.append(loss.item())
+        print(f'Training step: {step+1}/{len(train_dl)}, Loss: {loss:.4f}')
+      
+      model.eval()
+      for step,batch in enumerate(val_dl):
+        with torch.no_grad():
+          generated_tokens = model.generate(
+            batch["input_ids"].to(self.device),
+            attention_mask = batch["attention_mask"].to(self.device),
+            num_beams = 5,
+            max_length = self.max_target_length,
+            length_penalty = 5.0,
+            early_stopping = True,
+            use_cache = True
+          )
+
+          
+          labels = batch["labels"]
+          labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
+
+          decoded_preds = self.tokenizer.batch_decode(generated_tokens,skip_special_tokens=True)
+          decoded_labels = self.tokenizer.batch_decode(labels,skip_special_tokens=True)
+          decoded_preds = [pred.strip() for pred in decoded_preds]
+          decoded_labels = [[label.strip()] for label in decoded_labels]
+
+          metric.add_batch(predictions=decoded_preds,references=decoded_labels)
+        print(f'Validation step: {step+1}/{len(val_dl)}')
+
+      result = metric.compute()
+      # save best version of model
+      if result["score"] > best_result:
+        model.save_pretrained(f'./models/{self.model_name}-{self.dataset_type}')
+        best_result = result["score"]
 
 
-# load data
-data_files = {"train":"train.csv","val":"dev.csv","test":"test.csv"}
-datasets = load_dataset(path='./processed_data', data_files=data_files)
-
-# get tokenizer and model
-access_token = "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"
-checkpoint = "google/flan-t5-small"
-# checkpoint = "facebook/bart-large"
-
-model = AutoModelForSeq2SeqLM.from_pretrained(checkpoint,token=access_token)
-
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-tokenizer = AutoTokenizer.from_pretrained(checkpoint,token=access_token)
-
-# tokenize data (train + val)
-max_target_length = 384
-max_input_length = 384
-
-def preprocess_function(example):
-  model_inputs = tokenizer(example["source"], max_length=max_input_length,padding=True,truncation=True)
-
-  labels = tokenizer(example["target"], max_length=max_target_length,padding=True,truncation=True)
-  model_inputs["labels"] = labels["input_ids"]
-
-  return model_inputs
-
-tokenized_datasets = datasets.map(preprocess_function, batched=True)
-tokenized_datasets = tokenized_datasets.remove_columns("source")
-tokenized_datasets = tokenized_datasets.remove_columns("target")
-data_collator = DataCollatorForSeq2Seq(tokenizer,model=model)
-
-
-# training
-batch_size = 4
-num_train_epochs = 5
-steps = len(tokenized_datasets["train"]) // batch_size
-name = checkpoint.split('/')[-1]
-
-args = Seq2SeqTrainingArguments(
-    output_dir=f"{name}",
-    evaluation_strategy="epoch",
-    learning_rate=5e-5,
-    per_device_train_batch_size=batch_size,
-    per_device_eval_batch_size=batch_size,
-    weight_decay=0.01,
-    optim="adamw_torch",
-    save_total_limit=3,
-    num_train_epochs=num_train_epochs,
-    predict_with_generate=True,
-    save_strategy = 'epoch',
-    logging_steps=steps,
-    push_to_hub=False,
-    generation_max_length=max_target_length,
-    load_best_model_at_end=True
-) 
-
-
-def compute_metrics(eval_preds):
-  metric = evaluate.load("sacrebleu")
-  predictions, labels = eval_preds
-  predictions = np.where(predictions != -100, predictions, tokenizer.pad_token_id)
-  labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-  # convert predictions back into text
-  decoded_preds = tokenizer.batch_decode(predictions,skip_special_tokens=True)
-  decoded_labels = tokenizer.batch_decode(labels,skip_special_tokens=True)
-  decoded_preds = [pred.strip() for pred in decoded_preds]
-  decoded_labels = [[label.strip()] for label in decoded_labels]
-
-  # compute score
-  result = metric.compute(predictions=decoded_preds,references=decoded_labels)
-  return {"bleu" : result["score"]}
-
-trainer = Seq2SeqTrainer(
-    model,
-    args,
-    train_dataset=tokenized_datasets["train"],
-    eval_dataset=tokenized_datasets["val"],
-    data_collator=data_collator,
-    tokenizer=tokenizer,
-    compute_metrics=compute_metrics,
-)
-
-trainer.train()
-# print(trainer.evaluate())
-
-print()
-print(generate(datasets["test"]["source"][0],model,tokenizer))
-print()
-print(datasets["test"]["target"][0])
+      metric_scores.append(result["score"])
+      mean_loss = np.mean(epoch_loss)
+      losses.append(mean_loss)
+      print(f'Epoch: {epoch}, mean loss:{mean_loss:.4f}, bleu_score: {result["score"]:.4f}')
+    
+    # plot metric scores and losses
+    self.plot(losses,metric_scores,self.model_name)
+  
+  # def inference(self):
+  #   # model = AutoModelForSeq2SeqLM.from_pretrained(f'.models/{self.model_name}-{self.dataset_type}')
+  #   tokenizer = AutoTokenizer.from_pretrained(self.checkpoint)
+  #   summerizer = pipeline("summarization", f'./models/{self.model_name}-{self.dataset_type}',tokenizer=tokenizer,max_length=self.max_target_length)
+  #   print("Summerization Inference \n")
+  #   print(summerizer("<R> <C> Model <C> SVQA <C> TGIF-QA (*) Action <C> TGIF-QA (*) Trans."))

@@ -38,5 +38,5 @@ for split in ["train","dev","test"]:
   file_path = f'{base_path}/converted_data/{split}'
 
   source,target = load_file(f'{file_path}.source'),load_file(f'{file_path}.target')
-  df = pd.DataFrame({'source': source, 'target':target})
+  df = pd.DataFrame({'source': source[:10], 'target':target[:10]})
   df.to_csv(f'./processed_data/{split}.csv',index=False,encoding='utf-8')
