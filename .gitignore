@@ -1,5 +1,6 @@
 processed_data/*
 plots/*
 models/*
-SciGen/*
 __pycache__/*
+logs/*
+training-data/

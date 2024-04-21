@@ -1,13 +1,14 @@
 from datasets import load_dataset
 from transformers import (
   AutoTokenizer,
-  Seq2SeqTrainer,
-  Seq2SeqTrainingArguments,
   AutoModelForSeq2SeqLM,
   DataCollatorForSeq2Seq,
+  DataCollatorForLanguageModeling,
   AutoModelForCausalLM,
   get_scheduler,
   pipeline,
+  LlamaForCausalLM,
+  LlamaTokenizer,
 
 )
 from torch.utils.data import DataLoader
@@ -33,7 +34,14 @@ class CustomSciGenTrainer:
     self.dataset_path = dataset_path
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     self.checkpoint = checkpoint 
-    self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint,token=self.access_token)
+
+
+    if self.mode == "causal":
+      self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint,token=self.access_token)
+      self.tokenizer.padding_side = "right"
+    else:
+      self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint,token=self.access_token)
+    self.tokenizer.pad_token = self.tokenizer.eos_token 
     self.max_input_length = max_input_length
     self.max_target_length = max_target_length
     self.batch_size = batch_size
@@ -41,7 +49,7 @@ class CustomSciGenTrainer:
     self.model_name = self.checkpoint.split('/')[-1]
 
     # Make required directories
-    directories = ['./plots','./models',f'./models/{self.model_name}-{self.dataset_type}']
+    directories = ['./plots','./models','./training-data',f'./models/{self.model_name}-{self.dataset_type}']
     for d in directories:
       if not Path(d).is_dir():
         os.makedirs(d)
@@ -55,7 +63,7 @@ class CustomSciGenTrainer:
     if self.mode == "seq2seq":
       model = AutoModelForSeq2SeqLM.from_pretrained(self.checkpoint,token = self.access_token)
     elif self.mode == "causal":
-      model = AutoModelForCausalLM.from_pretrained(self.checkpoint,token = self.access_token)
+      model = LlamaForCausalLM.from_pretrained(self.checkpoint,token = self.access_token,)
     return model
   
   def preprocess_function(self,example):
@@ -102,13 +110,16 @@ class CustomSciGenTrainer:
   def train(self,learning_rate,epochs):
     model = self.load_model()
     model.to(self.device)
-    data_collator = DataCollatorForSeq2Seq(self.tokenizer,model=model)# CHANGE IF CAUSAL!!
+    if self.mode == "seq2seq":
+      data_collator = DataCollatorForSeq2Seq(self.tokenizer,model=model)
+    else:
+      data_collator = DataCollatorForLanguageModeling(self.tokenizer,mlm=False)
+    
     datasets = self.load_dataset()
     tokenized_datasets = self.tokenize_dataset(datasets)
     train_dl,val_dl = self.create_dataloaders(tokenized_datasets,data_collator)
-    optimizer = AdamW(model.parameters(), lr=learning_rate, eps =1e-4)
+    optimizer = AdamW(model.parameters(), lr=learning_rate)
     metric = evaluate.load("sacrebleu")
-    scaler = torch.cuda.amp.GradScaler()
 
     
     lr_scheduler = get_scheduler(
@@ -176,10 +187,12 @@ class CustomSciGenTrainer:
     
     # plot metric scores and losses
     self.plot(losses,metric_scores,self.model_name)
+    arr = np.array(list(zip(losses,metric_scores)))
+    np.savetxt(f'./training-data/{self.model_name}-{self.dataset_type}',arr)
   
   # def inference(self):
   #   # model = AutoModelForSeq2SeqLM.from_pretrained(f'.models/{self.model_name}-{self.dataset_type}')
   #   tokenizer = AutoTokenizer.from_pretrained(self.checkpoint)
   #   summerizer = pipeline("summarization", f'./models/{self.model_name}-{self.dataset_type}',tokenizer=tokenizer,max_length=self.max_target_length)
   #   print("Summerization Inference \n")
-  #   print(summerizer("<R> <C> Model <C> SVQA <C> TGIF-QA (*) Action <C> TGIF-QA (*) Trans."))
+  #   print(summerizer("<R> <C> Model <C> SVQA <C> TGIF-QA (*) Action <C> TGIF-QA (*) Trans.")["summary_text"])
