@@ -189,7 +189,7 @@ class CustomSciGenTrainer:
     # plot metric scores and losses
     self.plot(losses,metric_scores,self.model_name)
     arr = np.array(list(zip(losses,metric_scores)))
-    np.savetxt(f'./training-data/{self.model_name}-{self.dataset_type}',arr)
+    np.savetxt(f'./training-data/{self.model_name}-{self.dataset_type}.txt',arr)
   
   # def inference(self):
   #   # model = AutoModelForSeq2SeqLM.from_pretrained(f'.models/{self.model_name}-{self.dataset_type}')
