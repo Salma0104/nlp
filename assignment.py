@@ -7,8 +7,6 @@ from transformers import (
   AutoModelForCausalLM,
   get_scheduler,
   pipeline,
-  LlamaForCausalLM,
-  LlamaTokenizer,
 
 )
 from torch.utils.data import DataLoader
@@ -38,10 +36,12 @@ class CustomSciGenTrainer:
 
     if self.mode == "causal":
       self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint,token=self.access_token)
-      self.tokenizer.padding_side = "right"
+      self.tokenizer.padding_side = "left"
     else:
       self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint,token=self.access_token)
-    self.tokenizer.pad_token = self.tokenizer.eos_token 
+    if self.tokenizer.pad_token == None:
+      self.tokenizer.pad_token = self.tokenizer.eos_token 
+
     self.max_input_length = max_input_length
     self.max_target_length = max_target_length
     self.batch_size = batch_size
@@ -63,7 +63,7 @@ class CustomSciGenTrainer:
     if self.mode == "seq2seq":
       model = AutoModelForSeq2SeqLM.from_pretrained(self.checkpoint,token = self.access_token)
     elif self.mode == "causal":
-      model = LlamaForCausalLM.from_pretrained(self.checkpoint,token = self.access_token,)
+      model = AutoModelForCausalLM.from_pretrained(self.checkpoint,token = self.access_token,)
     return model
   
   def preprocess_function(self,example):
@@ -155,7 +155,7 @@ class CustomSciGenTrainer:
             batch["input_ids"].to(self.device),
             attention_mask = batch["attention_mask"].to(self.device),
             num_beams = 5,
-            max_length = self.max_target_length,
+            max_new_tokens = self.max_target_length,
             length_penalty = 5.0,
             early_stopping = True,
             use_cache = True
@@ -178,12 +178,13 @@ class CustomSciGenTrainer:
       if result["score"] > best_result:
         model.save_pretrained(f'./models/{self.model_name}-{self.dataset_type}')
         best_result = result["score"]
+        print('Saved current model with best score!')
 
 
       metric_scores.append(result["score"])
       mean_loss = np.mean(epoch_loss)
       losses.append(mean_loss)
-      print(f'Epoch: {epoch}, mean loss:{mean_loss:.4f}, bleu_score: {result["score"]:.4f}')
+      print(f'Epoch: {epoch}, mean loss:{mean_loss:.4f}, bleu_score: {result["score"]:.4f}, best bleu score: {best_result}')
     
     # plot metric scores and losses
     self.plot(losses,metric_scores,self.model_name)
