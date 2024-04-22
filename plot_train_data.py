@@ -20,6 +20,7 @@ def plot(data,names,yaxis_name):
     plt.grid(True)
     plt.plot(epochs,data[i],colours[i],linewidth=2,label=names[i])
   yaxis_name = yaxis_name.replace(" ","_")
+  plt.legend()
   plt.savefig(f'./{yaxis_name}.png', bbox_inches='tight', pad_inches=0)
 
 
