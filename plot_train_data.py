@@ -12,7 +12,7 @@ def plot(data,names,yaxis_name):
   fig, ax = plt.subplots(figsize=(8, 8))
   colours = ['red','blue','green','orange']
   epochs = [i + 1 for i in range(len(data[0]))]
-  ax.set_title(f"Change in {yaxis_name} over {len(data)} epochs")
+  ax.set_title(f"Change in {yaxis_name} over {len(data[0])} epochs")
   ax.set_ylabel(yaxis_name)
   ax.set_xlabel('Number of epochs')
 
