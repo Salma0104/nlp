@@ -25,7 +25,7 @@ def plot(data,names,yaxis_name):
 for file in os.listdir("./training-data"):
   name = file.replace("-few_shot","")
   name = file.replace("-50","")
-  arr = np.loadtxt(file,delimiter=" ", dtype=float)
+  arr = np.loadtxt(f'./training-data/{file}',delimiter=" ", dtype=float)
   names.append(name)
   losses.append([loss for loss,score in arr])
   scores.append([score for loss,score in arr])
