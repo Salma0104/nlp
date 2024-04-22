@@ -19,4 +19,5 @@
 # rm -v !(*$SLURM_JOB_ID*)
 module load Anaconda3/2022.05
 source activate nlp
-python run_experiment.py --access_token=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
+# python run_experiment.py --access_token=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
+python inference.py --access_token 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
