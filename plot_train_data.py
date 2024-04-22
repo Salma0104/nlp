@@ -11,7 +11,7 @@ names = []
 def plot(data,names,yaxis_name):
   fig, ax = plt.subplots(figsize=(8, 8))
   colours = ['red','blue','green','orange']
-  epochs = [i + 1 for i in range(len(data))]
+  epochs = [i + 1 for i in range(len(data[0]))]
   ax.set_title(f"Change in {yaxis_name} over {len(data)} epochs")
   ax.set_ylabel(yaxis_name)
   ax.set_xlabel('Number of epochs')
@@ -19,6 +19,7 @@ def plot(data,names,yaxis_name):
   for i in range(len(names)):
     plt.grid(True)
     plt.plot(epochs,data[i],colours[i],linewidth=2,label=names[i])
+  yaxis_name = yaxis_name.replace(" ","_")
   plt.savefig(f'./{yaxis_name}.png', bbox_inches='tight', pad_inches=0)
 
 
@@ -32,4 +33,4 @@ for file in os.listdir("./training-data"):
 
 # Plot data
 plot(losses,names,"Loss")
-plot(scores,names,"Bleu Score ")
+plot(scores,names,"Bleu Score")
