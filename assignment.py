@@ -91,22 +91,6 @@ class CustomSciGenTrainer:
     val_dl = DataLoader(tokenized_datasets["val"], batch_size = self.batch_size//2)
     return train_dl,val_dl
   
-  def plot(self,losses,scores,model_name):
-    plt.figure("Training results", (12, 6))
-    plt.subplot(1, 2, 1)
-    plt.title("Epoch Average Loss")
-    x = [i + 1 for i in range(len(losses))]
-    y = losses
-    plt.xlabel("epoch")
-    plt.plot(x, y)
-    plt.subplot(1, 2, 2)
-    plt.title("Bleu Scores")
-    x = [len(losses)//len(scores) * (i + 1) for i in range(len(scores))]
-    y = scores 
-    plt.xlabel("epoch")
-    plt.plot(x, y)
-    plt.savefig(f'plots/{model_name}-{self.dataset_type}.png', bbox_inches='tight', pad_inches=0)
-
   def train(self,learning_rate,epochs):
     model = self.load_model()
     model.to(self.device)
@@ -185,15 +169,7 @@ class CustomSciGenTrainer:
       mean_loss = np.mean(epoch_loss)
       losses.append(mean_loss)
       print(f'Epoch: {epoch}, mean loss:{mean_loss:.4f}, bleu_score: {result["score"]:.4f}, best bleu score: {best_result}')
-    
-    # plot metric scores and losses
-    self.plot(losses,metric_scores,self.model_name)
+      
     arr = np.array(list(zip(losses,metric_scores)))
     np.savetxt(f'./training-data/{self.model_name}-{self.dataset_type}.txt',arr)
   
-  # def inference(self):
-  #   # model = AutoModelForSeq2SeqLM.from_pretrained(f'.models/{self.model_name}-{self.dataset_type}')
-  #   tokenizer = AutoTokenizer.from_pretrained(self.checkpoint)
-  #   summerizer = pipeline("summarization", f'./models/{self.model_name}-{self.dataset_type}',tokenizer=tokenizer,max_length=self.max_target_length)
-  #   print("Summerization Inference \n")
-  #   print(summerizer("<R> <C> Model <C> SVQA <C> TGIF-QA (*) Action <C> TGIF-QA (*) Trans.")["summary_text"])
