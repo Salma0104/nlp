@@ -3,11 +3,11 @@ import evaluate
 from nltk.translate import meteor_score
 from datasets import load_dataset
 import numpy as np
-from moverscore_v2 import get_idf_dict, word_mover_score
+#from moverscore_v2 import get_idf_dict, word_mover_score
 
 def evaluate_preds(predictions,references):
   # compute sacrebleu, meteor + mover score
-  met_score = [meteor_score.single_meteor_score(p,r,alpha=0.9, beta=3, gamma=0.5) for p,r in zip(predictions,references)]
+  met_score = [meteor_score.single_meteor_score(p,r,alpha=0.9, beta=3, gamma=0.5) for p,r in zip(predictions,[[ref] for ref in references])]
   scb_score = scb.compute(predictions = predictions,references = [[ref] for ref in references])
 
   idf_dict_pred = get_idf_dict(predictions)
@@ -24,6 +24,6 @@ data_files = {"test":"test.csv"}
 test_data = load_dataset(path='./processed_data', data_files=data_files)["test"]
 
 for file in os.listdir("./inference_results"):
-  predictions = np.loadtxt(f'./training-data/{file}', dtype=str)
+  predictions = np.loadtxt(f'./inference_results/{file}', dtype=str)
   ms,scbs,wms = evaluate_preds(predictions,test_data["target"])
   print(f"{file}: Meteor: {ms}, SacreBleu: {scbs}, Word Mover Score: {wms}")
