@@ -40,11 +40,12 @@ def run_inference(model,model_name,tokenizer,data,device):
         use_cache = True,
         num_beams = 5
       )
-    summary = tokenizer.decode(outputs, skip_special_tokens=True)
+    summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    summary = summary.replace("\n", " ")  
     predictions.append(summary)
-  with open(f'./inference_results/{model_name}''w') as file:
+  with open(f'./inference_results/{model_name}','w') as file:
     for line in predictions:
-      file.write(line + 'n')
+      file.write(line + '\n')
 
 data_files = {"test":"test.csv"}
 test_data = load_dataset(path='./processed_data', data_files=data_files)

@@ -43,8 +43,8 @@ for file in os.listdir("./inference_results"):
     checkpoint = f"Rocketknight1/{checkpoint}"
 
   print(checkpoint)
-  if checkpoint == "google/gemma-2b" or checkpoint == "Rocketknight1/falcon-rw-1b":
-    continue
+  #if checkpoint == "google/gemma-2b" or checkpoint == "Rocketknight1/falcon-rw-1b":
+   # continue
   with open(f'./inference_results/{file}','r') as f:
     lines = f.readlines()
   predictions = [line.strip() for line in lines]

@@ -11,8 +11,8 @@
 # Change the name of the output log file.
 #SBATCH --output=./logs/o_%j.out
 #SBATCH --error=./logs/e_%j.err
-# Request 8 hours
-#SBATCH --time=8:00:00
+# Request 2 hours
+#SBATCH --time=1:00:00
 
 # cd logs
 # shopt -s extglob
