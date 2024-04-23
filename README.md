@@ -28,7 +28,7 @@
 - Takes ~2:30 hours (stanage)
 
 ## Evaluate models
-- To evaluate the performance of the models run the command `python evaluate.py --access_token={YOUR ACCESS TOKEN}`. This takes ~5-10 minutes to run and shows you the meteor, sacrebleu and mover score of the predictions against the references (test data)
+- To evaluate the performance of the models run the command `python evaluate_models.py --access_token={YOUR ACCESS TOKEN}`. This takes ~5-10 minutes to run and shows you the meteor, sacrebleu and mover score of the predictions against the references (test data)
 
 # Results
 ## Training results (30 epochs on few shot ds)
