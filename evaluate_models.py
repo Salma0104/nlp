@@ -5,6 +5,7 @@ from datasets import load_dataset
 import numpy as np
 from transformers import AutoTokenizer
 import argparse
+import transformers
 transformers.set_seed(2002)
 
 parser = argparse.ArgumentParser()
@@ -40,5 +41,7 @@ for file in os.listdir("./inference_results"):
     checkpoint = f"google/{checkpoint}"
   else:
     checkpoint = f"Rocketknight1/{checkpoint}"
-  ms,scbs,wms = evaluate_preds(predictions,test_data["target"],checkpoint)
-  print(f"{file}: Meteor: {ms}, SacreBleu: {scbs}, Word Mover Score: {wms}")
+  print(len(predictions))
+  print(predictions[0])
+  #ms,scbs,wms = evaluate_preds(predictions,test_data["target"],checkpoint)
+  #print(f"{file}: Meteor: {ms}, SacreBleu: {scbs}, Word Mover Score: {wms}")
