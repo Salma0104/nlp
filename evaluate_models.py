@@ -6,6 +6,7 @@ import numpy as np
 from transformers import AutoTokenizer
 import argparse
 import transformers
+import pandas as pd
 transformers.set_seed(2002)
 
 parser = argparse.ArgumentParser()
@@ -35,7 +36,7 @@ data_files = {"test":"test.csv"}
 test_data = load_dataset(path='./processed_data', data_files=data_files)["test"]
 
 for file in os.listdir("./inference_results"):
-  predictions = np.loadtxt(f'./inference_results/{file}', dtype=str)
+  predictions =pd.read_csv(f'./inference_results/{file}', header=None)[0].tolist()
   checkpoint = file
   if checkpoint != "falcon-rw-1b":
     checkpoint = f"google/{checkpoint}"
