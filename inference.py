@@ -40,9 +40,11 @@ def run_inference(model,model_name,tokenizer,data,device):
         use_cache = True,
         num_beams = 5
       )
-    summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    summary = tokenizer.decode(outputs, skip_special_tokens=True)
     predictions.append(summary)
-  np.savetxt(f'./inference_results/{model_name}',predictions,fmt='%s')
+  with open(f'./inference_results/{model_name}''w') as file:
+    for line in predictions:
+      file.write(line + 'n')
 
 data_files = {"test":"test.csv"}
 test_data = load_dataset(path='./processed_data', data_files=data_files)
@@ -73,4 +75,5 @@ for model_path in os.listdir("./models"):
     tokenizer.pad_token = tokenizer.eos_token 
   
   model_name = checkpoint.split("/")[-1]
-  run_inference(model,model_name,tokenizer,test_data["test"],device)
+  if checkpoint not in ed_models:
+    run_inference(model,model_name,tokenizer,test_data["test"],device)
