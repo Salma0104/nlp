@@ -23,17 +23,18 @@ args = parser.parse_args()
 if not Path("./inference_results").is_dir():
   os.makedirs("./inference_results")
 
-def run_inference(model,model_name,tokenizer,data):
+def run_inference(model,model_name,tokenizer,data,device):
+  model.to(device)
   predictions = []
 
   model.eval()
   for i in range(len(data)):
-    print(f"{i}/{len(data)}")
+    print(f'{i}/{len(data)}')
     prompt = tokenizer(data["source"][i],max_length = 384,return_tensors="pt",padding=True,truncation=True)
     with torch.no_grad():
       outputs = model.generate(
-        prompt["input_ids"],
-        attention_mask = prompt["attention_mask"],
+        prompt["input_ids"].to(device),
+        attention_mask = prompt["attention_mask"].to(device),
         max_new_tokens = 130,
         early_stopping = True,
         use_cache = True,
@@ -45,8 +46,8 @@ def run_inference(model,model_name,tokenizer,data):
 
 data_files = {"test":"test.csv"}
 test_data = load_dataset(path='./processed_data', data_files=data_files)
-
 ed_models = {"google/flan-t5-small","google/flan-t5-large"}
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 for model_path in os.listdir("./models"):
   checkpoint = model_path.replace("-few_shot","")
@@ -72,4 +73,4 @@ for model_path in os.listdir("./models"):
     tokenizer.pad_token = tokenizer.eos_token 
   
   model_name = checkpoint.split("/")[-1]
-  run_inference(model,model_name,tokenizer,test_data["test"])
+  run_inference(model,model_name,tokenizer,test_data["test"],device)
