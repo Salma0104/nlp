@@ -12,8 +12,9 @@ def evaluate_preds(predictions,references):
 
   idf_dict_pred = get_idf_dict(predictions)
   idf_dict_ref = get_idf_dict(references)
-  wm_score = word_mover_score(references, predictions, idf_dict_ref, idf_dict_pred, \
-                          stop_words=[], n_gram=1, remove_subwords=True, batch_size=64)
+  wm_score = 0
+  # wm_score = word_mover_score(references, predictions, idf_dict_ref, idf_dict_pred, \
+  #                         stop_words=[], n_gram=1, remove_subwords=True, batch_size=64)
   return met_score,scb_score,wm_score
 
 
