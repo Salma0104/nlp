@@ -76,5 +76,4 @@ for model_path in os.listdir("./models"):
     tokenizer.pad_token = tokenizer.eos_token 
   
   model_name = checkpoint.split("/")[-1]
-  if checkpoint not in ed_models:
-    run_inference(model,model_name,tokenizer,test_data["test"],device)
+  run_inference(model,model_name,tokenizer,test_data["test"],device)
