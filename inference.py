@@ -28,6 +28,7 @@ def run_inference(model,model_name,tokenizer,data):
 
   model.eval()
   for i in range(len(data)):
+    print(f"{i}/{len(data)}")
     prompt = tokenizer(data["source"][i],max_length = 384,return_tensors="pt",padding=True,truncation=True)
     with torch.no_grad():
       outputs = model.generate(
