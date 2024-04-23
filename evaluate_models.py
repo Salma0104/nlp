@@ -36,13 +36,18 @@ data_files = {"test":"test.csv"}
 test_data = load_dataset(path='./processed_data', data_files=data_files)["test"]
 
 for file in os.listdir("./inference_results"):
-  predictions =pd.read_csv(f'./inference_results/{file}', header=None)[0].tolist()
   checkpoint = file
   if checkpoint != "falcon-rw-1b":
     checkpoint = f"google/{checkpoint}"
   else:
     checkpoint = f"Rocketknight1/{checkpoint}"
-  print(len(predictions))
-  print(predictions[0])
-  #ms,scbs,wms = evaluate_preds(predictions,test_data["target"],checkpoint)
-  #print(f"{file}: Meteor: {ms}, SacreBleu: {scbs}, Word Mover Score: {wms}")
+
+  print(checkpoint)
+  if checkpoint == "google/gemma-2b" or checkpoint == "Rocketknight1/falcon-rw-1b":
+    continue
+  with open(f'./inference_results/{file}','r') as f:
+    lines = f.readlines()
+  predictions = [line.strip() for line in lines]
+  #print(predictions[-1])
+  ms,scbs,wms = evaluate_preds(predictions,test_data["target"],checkpoint)
+  print(f"{file}: Meteor: {np.mean(ms):.3f}, SacreBleu: {scbs['score']:.3f}, Word Mover Score: {wms:.3f}")
